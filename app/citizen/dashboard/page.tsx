@@ -25,13 +25,19 @@ export default function CitizenDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/grievances')
-      .then((r) => r.json())
-      .then((d) => {
-        setGrievances(d.grievances || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    const loadGrievances = () => {
+      fetch('/api/grievances')
+        .then((r) => r.json())
+        .then((d) => {
+          const list = Array.isArray(d) ? d : d?.data ?? [];
+          setGrievances(list);
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+    };
+    loadGrievances();
+    const refreshId = window.setInterval(loadGrievances, 5000);
+    return () => window.clearInterval(refreshId);
   }, []);
 
   const total = grievances.length;
@@ -95,7 +101,7 @@ export default function CitizenDashboard() {
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {grievances.slice(0, 10).map((g) => {
-              const deptName = DEPARTMENT_NAMES[g.departmentId || ''] || 'Respective Department';
+              const deptName = DEPARTMENT_NAMES[g.departmentId || ''] || 'Department pending review';
               return (
                 <Link key={g.id} href={`/citizen/grievances/${g.id}`} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
                   <div className="min-w-0 flex-1 space-y-1">

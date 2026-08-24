@@ -50,27 +50,53 @@ export async function POST(req: NextRequest) {
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { title, description, categoryId, location, duration, affectedCount, previousComplaintId } = body;
+  const {
+    title,
+    description,
+    categoryId,
+    location,
+    duration,
+    affectedCount,
+    previousComplaintId,
+    attachments = []
+  } = body;
 
   const id = `GRV-${Date.now().toString().slice(-4)}`;
   const now = new Date().toISOString();
 
-  const grievance: any = {
+  const category = store.categories.find((c) => c.id === categoryId);
+  const departmentId = category?.departmentId || '';
+  const safeLocation = {
+    address: location?.address || '',
+    area: location?.area || '',
+    ward: location?.ward || '',
+    city: location?.city || 'Bangalore'
+  };
+  const departmentName = store.departments.find((d) => d.id === departmentId)?.name || 'Municipal Department';
+
+  const complaintLetter = `To the ${departmentName},\n\nSubject: Citizen Grievance / Student Issue Complaint\n\nDear Sir/Madam,\n\nI, ${user.name}, am filing this complaint regarding the issue titled "${title || 'Civic Issue'}".\n\nIssue Details:\n- Category: ${category?.name || categoryId || 'General Civic Issue'}\n- Location: ${safeLocation.address || safeLocation.area || safeLocation.ward || 'Not specified'}, ${safeLocation.city}\n- Description: ${description || 'No additional details were provided.'}\n- Duration: ${duration || 'Not specified'}\n- Affected count: ${affectedCount ?? 'Not specified'}\n\nThis issue affects public safety and welfare and requires prompt review and resolution. Kindly treat this as an urgent matter and provide an update on the action taken.\n\nSincerely,\n${user.name}\nCitizen / Complainant`;
+
+  const grievance: Grievance = {
     id,
     title,
     description,
     categoryId,
-    departmentId: '', // To be updated later or via logic
-    location,
+    departmentId,
+    location: safeLocation,
     citizenId: user.userId,
     status: 'SUBMITTED',
+    priorityScore: 0,
+    priorityLevel: 'MEDIUM',
     createdAt: now,
     updatedAt: now,
+    attachments: Array.isArray(attachments) ? attachments : [],
+    complaintLetter,
+    ...(duration ? { duration } : {}),
+    ...(affectedCount !== undefined ? { affectedCount: Number(affectedCount) } : {}),
+    ...(previousComplaintId ? { previousComplaintId } : {})
   };
 
-  if (affectedCount) grievance.affectedCount = affectedCount;
-
-  addGrievance(grievance as any);
+  addGrievance(grievance);
 
   addAuditLog({
     id: `log-${Date.now()}`,
@@ -83,5 +109,5 @@ export async function POST(req: NextRequest) {
     actorRole: user.role as any,
   });
 
-  return Response.json(grievance, { status: 201 });
+  return Response.json({ grievance }, { status: 201 });
 }

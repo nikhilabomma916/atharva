@@ -92,6 +92,10 @@ store.knowledgeDocuments = [
   { id: 'doc-005', title: 'Garbage Collection Routing', content: 'If standard routes fail, use backup route B and notify the zonal supervisor.', category: 'Sanitation', tags: ['garbage', 'routes', 'backup'], isDemo: true, createdAt: new Date().toISOString() },
 ];
 
+// Demo transaction data is intentionally disabled. Complaints enter through the API.
+const seedDemoData = false;
+
+if (seedDemoData) {
 // --- GENERATORS FOR SCENARIOS ---
 
 let grievanceCounter = 1;
@@ -369,6 +373,8 @@ store.notifications.push({
   read: false,
   createdAt: new Date().toISOString()
 });
+
+}
 
 // --- HELPER FUNCTIONS ---
 

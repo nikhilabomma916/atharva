@@ -32,6 +32,8 @@ export default function AdminDashboard() {
       }
     };
     fetchData();
+    const refreshId = window.setInterval(fetchData, 5000);
+    return () => window.clearInterval(refreshId);
   }, []);
 
   if (loading) {
@@ -46,9 +48,9 @@ export default function AdminDashboard() {
     return <div>Failed to load dashboard data.</div>;
   }
 
-  const resolvedCount = data.statusDistribution.resolved || data.resolved || 34;
-  const openCount = data.statusDistribution.open || data.open || 58;
-  const inProgressCount = data.statusDistribution.inProgress || data.inProgress || 12;
+  const resolvedCount = data.statusDistribution.resolved || data.resolved || 0;
+  const openCount = data.statusDistribution.open || data.open || 0;
+  const inProgressCount = data.statusDistribution.inProgress || data.inProgress || 0;
 
   return (
     <div className="space-y-6">

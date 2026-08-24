@@ -80,6 +80,7 @@ export interface Grievance {
   updatedAt: string;
   resolvedAt?: string;
   attachments: Attachment[];
+  complaintLetter?: string;
 }
 
 // Attachment

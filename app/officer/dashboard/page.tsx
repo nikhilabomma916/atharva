@@ -56,6 +56,8 @@ export default function OfficerDashboard() {
       }
     }
     fetchData();
+    const refreshId = window.setInterval(fetchData, 5000);
+    return () => window.clearInterval(refreshId);
   }, []);
 
   const priorityQueue = [...grievances]
@@ -139,7 +141,7 @@ export default function OfficerDashboard() {
               ) : (
                 <div className="space-y-4 mt-4">
                   {priorityQueue.map((grievance) => {
-                    const deptName = DEPARTMENT_NAMES[grievance.departmentId || ''] || 'Respective Department';
+                    const deptName = DEPARTMENT_NAMES[grievance.departmentId || ''] || 'Department pending review';
                     return (
                       <div 
                         key={grievance.id} 
@@ -158,7 +160,7 @@ export default function OfficerDashboard() {
                               <Building2 className="size-3 text-indigo-500" />
                               Dept: <strong>{deptName}</strong>
                             </span>
-                            <span>📍 {grievance.location?.address || grievance.location?.ward || 'Ward 12'}</span>
+                            <span>📍 {grievance.location?.address || grievance.location?.ward || 'Location not provided'}</span>
                           </div>
                         </div>
                         <div className="flex flex-wrap sm:flex-col sm:items-end gap-2 shrink-0">

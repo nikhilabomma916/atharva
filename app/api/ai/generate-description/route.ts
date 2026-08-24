@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     const raw = (keywords || issueTitle || '').toLowerCase();
 
     let generatedDescription = '';
-    let categoryName = CATEGORY_NAMES[categoryId] || 'Municipal Civic Defect';
+    const categoryName = CATEGORY_NAMES[categoryId] || 'Municipal Civic Defect';
 
     if (raw.includes('wire') || raw.includes('electric') || raw.includes('spark') || raw.includes('shock') || raw.includes('pole')) {
       generatedDescription = `EXECUTIVE COMPLAINT REPORT:\n\nDetailed observation: High-voltage electrical wire/junction hazard detected on the public thoroughfare. Live sparking and exposed cabling pose an immediate threat of electrocution to pedestrians, children, and passing traffic. Immediate isolation, circuit shutdown, and emergency field repair crew dispatch required.`;

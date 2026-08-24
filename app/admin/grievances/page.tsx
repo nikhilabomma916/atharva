@@ -19,7 +19,8 @@ export default function GrievancesPage() {
         const response = await fetch('/api/grievances');
         if (response.ok) {
           const result = await response.json();
-          setGrievances(result);
+          const list = Array.isArray(result) ? result : result?.data ?? [];
+          setGrievances(list);
         }
       } catch (error) {
         console.error('Failed to fetch grievances', error);

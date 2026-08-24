@@ -34,10 +34,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-900">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar (Mobile) */}
       <div className={cn("fixed inset-0 z-50 bg-black/50 lg:hidden", sidebarOpen ? "block" : "hidden")} onClick={() => setSidebarOpen(false)} />
-      <aside className={cn("fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white transition-transform lg:static lg:translate-x-0 flex flex-col", sidebarOpen ? "translate-x-0" : "-translate-x-full")}>
+      <aside className={cn("fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground transition-transform lg:static lg:translate-x-0 flex flex-col", sidebarOpen ? "translate-x-0" : "-translate-x-full")}>
         <div className="flex h-16 items-center px-6 border-b border-slate-800 shrink-0">
           <Brain className="h-6 w-6 text-blue-400 mr-2" />
           <h1 className="text-xl font-bold">CivicResolve</h1>
@@ -93,7 +93,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {/* Header */}
-        <header className="h-16 border-b bg-white dark:bg-slate-900 dark:border-slate-800 flex items-center justify-between px-4 sm:px-6 lg:px-8 shrink-0">
+        <header className="h-16 border-b bg-background flex items-center justify-between px-4 sm:px-6 lg:px-8 shrink-0">
           <div className="flex items-center flex-1">
             <button
               onClick={() => setSidebarOpen(true)}

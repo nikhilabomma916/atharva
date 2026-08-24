@@ -72,13 +72,13 @@ export default function OfficerLayout({ children }: { children: React.ReactNode 
   ];
 
   if (loading) {
-    return <div className="flex h-screen items-center justify-center bg-slate-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>;
+    return <div className="flex h-screen items-center justify-center bg-background"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
   }
 
   if (!user) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Mobile sidebar overlay */}
       {isMobileMenuOpen && (
         <div 
@@ -89,11 +89,11 @@ export default function OfficerLayout({ children }: { children: React.ReactNode 
 
       {/* Sidebar */}
       <aside 
-        className={`fixed inset-y-0 left-0 z-50 w-64 transform bg-[#0f172a] text-slate-300 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 transform bg-sidebar text-sidebar-foreground transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex h-16 items-center justify-between px-4 py-4 border-b border-slate-800 bg-[#020817]">
+        <div className="flex h-16 items-center justify-between px-4 py-4 border-b border-sidebar-border bg-sidebar">
           <Link href="/officer/dashboard" className="flex items-center space-x-2">
             <ShieldAlert className="h-6 w-6 text-indigo-500" />
             <span className="text-xl font-bold text-white tracking-tight">CivicResolve</span>
@@ -158,7 +158,7 @@ export default function OfficerLayout({ children }: { children: React.ReactNode 
 
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 items-center justify-between border-b bg-white px-4 sm:px-6 shadow-sm z-10">
+        <header className="flex h-16 items-center justify-between border-b bg-background px-4 sm:px-6 shadow-sm z-10">
           <div className="flex items-center">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
@@ -184,7 +184,7 @@ export default function OfficerLayout({ children }: { children: React.ReactNode 
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-[#f8fafc] p-4 sm:p-6 lg:p-8 relative">
+        <main className="flex-1 overflow-y-auto bg-background p-4 sm:p-6 lg:p-8 relative">
           <div className="mx-auto max-w-7xl">
             {children}
           </div>

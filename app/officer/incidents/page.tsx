@@ -20,34 +20,6 @@ export default function IncidentsPage() {
         if (res.ok) {
           const data = await res.json();
           setIncidents(data.incidents || []);
-        } else {
-          // Mock data if endpoint not fully ready
-          setIncidents([
-            {
-              id: 'inc-1',
-              title: 'Major Water Pipe Burst',
-              description: 'Multiple reports of flooding and no water pressure in Downtown area.',
-              status: 'ACTIVE',
-              severity: 'CRITICAL',
-              category: 'Water Supply',
-              complaintCount: 14,
-              estimatedAffected: 500,
-              location: 'Downtown District',
-              relatedGrievanceIds: ['g1', 'g2', 'g3']
-            },
-            {
-              id: 'inc-2',
-              title: 'Streetlight Outage',
-              description: 'Entire block on Maple St is dark.',
-              status: 'INVESTIGATING',
-              severity: 'MEDIUM',
-              category: 'Electricity',
-              complaintCount: 5,
-              estimatedAffected: 50,
-              location: 'Maple St, Westside',
-              relatedGrievanceIds: ['g4', 'g5']
-            }
-          ]);
         }
       } catch (error) {
         console.error('Error fetching incidents:', error);

@@ -97,14 +97,6 @@ export default function AIMonitoringDashboard() {
           >
             <RefreshCw className="size-3.5 mr-1.5" /> Refresh Stream
           </Button>
-          <Button
-            onClick={handleSimulate}
-            disabled={simulating}
-            className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold shadow-lg text-xs sm:text-sm"
-          >
-            <Zap className={`size-4 mr-1.5 ${simulating ? 'animate-spin' : ''}`} />
-            {simulating ? 'Simulating Influx...' : 'Simulate Live Influx'}
-          </Button>
         </div>
       </div>
 
@@ -116,26 +108,26 @@ export default function AIMonitoringDashboard() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Total Issues Logged"
-          value={stats?.totalProcessed || 105}
-          subtitle="96.4% dispatch accuracy"
+          value={stats?.totalProcessed || 0}
+          subtitle={`${stats?.autoTriageAccuracy || 0}% dispatch accuracy`}
           icon={<Brain className="size-5 text-indigo-500" />}
         />
         <MetricCard
           title="Duplicates Merged"
-          value={stats?.duplicatesIdentified || 18}
+          value={stats?.duplicatesIdentified || 0}
           subtitle="Linked to primary work orders"
           icon={<Layers className="size-5 text-blue-500" />}
         />
         <MetricCard
           title="Active Systemic Clusters"
-          value={activeIncidents.length || 2}
-          subtitle="Ward 12 & Ward 7 hotspots"
+          value={activeIncidents.length || 0}
+          subtitle="Derived from submitted complaints"
           icon={<AlertTriangle className="size-5 text-amber-500" />}
           className="border-amber-100 bg-amber-50/20"
         />
         <MetricCard
           title="Safety Escalations (4hr SLA)"
-          value={stats?.highRiskSafetyEscalations || 27}
+          value={stats?.highRiskSafetyEscalations || 0}
           subtitle="Live wire & hazard alarms"
           icon={<ShieldCheck className="size-5 text-red-500" />}
           className="border-red-100 bg-red-50/20"
@@ -281,8 +273,8 @@ export default function AIMonitoringDashboard() {
                   <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100">{inc.title}</h5>
                   <p className="text-[11px] text-slate-600 dark:text-slate-400">{inc.description}</p>
                   <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1 font-semibold">
-                    <span>👥 ~{inc.estimatedAffected || 1200} Affected</span>
-                    <span>📍 Ward {typeof inc.location === 'object' ? inc.location.ward : '12'}</span>
+                    <span>👥 ~{inc.estimatedAffected || 0} Affected</span>
+                    <span>📍 Ward {typeof inc.location === 'object' ? inc.location.ward : inc.ward || 'Not specified'}</span>
                   </div>
                 </div>
               ))}

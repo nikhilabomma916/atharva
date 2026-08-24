@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { aiMonitoring } from '@/lib/ai/monitoring-service';
 import { store } from '@/lib/data/store';
+import { detectIncidents } from '@/lib/ai/incident-detection';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
     stats,
     events,
     predictions,
-    activeIncidents: store.incidents,
+    activeIncidents: detectIncidents(store.grievances),
     duplicateCount: store.duplicateLinks.length,
     totalGrievances: store.grievances.length
   });

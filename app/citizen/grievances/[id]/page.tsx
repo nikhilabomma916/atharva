@@ -86,7 +86,20 @@ export default function GrievanceDetailPage() {
   useEffect(() => {
     fetch(`/api/grievances/${params.id}`)
       .then((r) => { if (!r.ok) throw new Error('Not found'); return r.json(); })
-      .then((d) => { setData(d); setLoading(false); })
+      .then((d) => {
+        const payload = d?.grievance ? d : { grievance: d };
+        const normalized = {
+          grievance: payload.grievance,
+          analysis: payload.analysis,
+          statusHistory: payload.statusHistory ?? [],
+          citizenUpdates: payload.citizenUpdates ?? payload.updates ?? [],
+          feedback: payload.feedback,
+          duplicates: payload.duplicates ?? []
+        };
+
+        setData(normalized);
+        setLoading(false);
+      })
       .catch((e) => { setError(e.message); setLoading(false); });
   }, [params.id]);
 

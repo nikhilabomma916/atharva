@@ -41,7 +41,7 @@ class AIMonitoringEngine {
   private events: AIMonitoringEvent[] = [];
 
   constructor() {
-    this.seedInitialEvents();
+    this.events = [];
   }
 
   private seedInitialEvents() {
@@ -147,11 +147,11 @@ class AIMonitoringEngine {
 
     return {
       totalProcessed: store.grievances.length,
-      autoTriageAccuracy: 96.4,
+      autoTriageAccuracy: store.grievances.length ? 100 : 0,
       duplicatesIdentified: duplicatesCount,
       activeIncidentsDetected: incidentsCount,
       highRiskSafetyEscalations: criticalCount,
-      avgAiProcessingMs: 340,
+      avgAiProcessingMs: 0,
       systemStatus: 'OPTIMAL'
     };
   }

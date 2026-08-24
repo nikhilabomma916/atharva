@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { store } from '@/lib/data/store';
 import { CATEGORY_NAMES, DEPARTMENT_NAMES } from '@/lib/constants';
+import { detectIncidents } from '@/lib/ai/incident-detection';
 
 export async function GET(req: NextRequest) {
   const total = store.grievances.length;
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   let scoreSum = 0;
   store.feedback.forEach(f => { scoreSum += f.rating; });
-  const satisfactionNum = store.feedback.length ? Number((scoreSum / store.feedback.length).toFixed(1)) : 4.2;
+  const satisfactionNum = store.feedback.length ? Number((scoreSum / store.feedback.length).toFixed(1)) : 0;
 
   // Status distribution
   const statusDistribution: Record<string, number> = {
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
     .map(([date, count]) => ({ date, count }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const activeIncidents = store.incidents.filter(i => i.status !== 'RESOLVED').length;
+  const activeIncidents = detectIncidents(store.grievances).length;
 
   return Response.json({
     totalGrievances: total,
@@ -75,8 +76,8 @@ export async function GET(req: NextRequest) {
     resolved,
     escalated,
     overdue,
-    avgResolutionHours: 28,
-    avgResolutionTimeHours: 28,
+    avgResolutionHours: 0,
+    avgResolutionTimeHours: 0,
     citizenSatisfaction: satisfactionNum,
     citizenSatisfactionScore: satisfactionNum,
     activeIncidents,

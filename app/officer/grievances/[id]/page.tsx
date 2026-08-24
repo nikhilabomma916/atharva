@@ -303,7 +303,7 @@ export default function GrievanceDetailPage() {
                         <div>
                           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Draft Citizen Response</h4>
                           <div className="bg-slate-50 p-3 rounded text-sm text-slate-700 italic border border-slate-100 relative">
-                            "{recommendation.suggestedCitizenResponse}"
+                            &ldquo;{recommendation.suggestedCitizenResponse}&rdquo;
                           </div>
                         </div>
                       )}

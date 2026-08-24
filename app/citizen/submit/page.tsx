@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   FileText, MapPin, Clock, Users, Upload, AlertCircle,
@@ -87,7 +87,7 @@ interface VisionAnalysis {
   recommendedIssues: RecommendedIssue[];
 }
 
-export default function SubmitGrievancePage() {
+function SubmitGrievanceForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -343,7 +343,8 @@ export default function SubmitGrievancePage() {
       }
 
       const createData = await createRes.json();
-      const grievanceId = createData.grievance.id;
+      const grievance = createData.grievance ?? createData;
+      const grievanceId = grievance.id;
 
       // Run AI analysis
       const analyzeRes = await fetch(`/api/grievances/${grievanceId}/analyze`, {
@@ -354,7 +355,11 @@ export default function SubmitGrievancePage() {
 
       await new Promise((resolve) => setTimeout(resolve, 2400));
 
-      setResult({ ...analyzeData, grievance: createData.grievance });
+      setResult({
+        ...analyzeData,
+        grievance,
+        letter: grievance.complaintLetter || null
+      });
       setStep('result');
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
@@ -451,6 +456,19 @@ export default function SubmitGrievancePage() {
             </div>
           </CardContent>
         </Card>
+
+        {result.letter && (
+          <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Generated Complaint Letter</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="whitespace-pre-line rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                {result.letter}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="flex gap-3">
           <Button className="flex-1 bg-indigo-600 hover:bg-indigo-700" onClick={() => router.push(`/citizen/grievances/${result.grievance.id}`)}>
@@ -786,5 +804,13 @@ export default function SubmitGrievancePage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function SubmitGrievancePage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-2xl py-16 text-center text-muted-foreground">Loading grievance form...</div>}>
+      <SubmitGrievanceForm />
+    </Suspense>
   );
 }

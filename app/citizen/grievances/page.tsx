@@ -29,7 +29,7 @@ export default function MyGrievancesPage() {
   useEffect(() => {
     fetch('/api/grievances')
       .then((r) => r.json())
-      .then((d) => { setGrievances(d.grievances || []); setLoading(false); })
+      .then((d) => { setGrievances(Array.isArray(d) ? d : d?.data ?? []); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
 
@@ -96,7 +96,7 @@ export default function MyGrievancesPage() {
                     </span>
                     <span className="flex items-center gap-1">
                       <MapPin className="size-3.5 text-slate-400" />
-                      {g.location?.address || g.location?.ward || 'Ward 12'}
+                      {g.location?.address || g.location?.ward || 'Location not provided'}
                     </span>
                     <span>
                       {new Date(g.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
