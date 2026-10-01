@@ -45,8 +45,8 @@ export default function OfficerLayout({ children }: { children: React.ReactNode 
         const res = await fetch('/api/auth/me');
         if (res.ok) {
           const data = await res.json();
-          if (data.user.role !== 'OFFICER' && data.user.role !== 'ADMIN' && data.user.role !== 'officer' && data.user.role !== 'admin') {
-            router.push('/login');
+          if (data.user.role !== 'officer') {
+            router.push(data.user.role === 'admin' ? '/admin/dashboard' : '/login');
           } else {
             setUser(data.user);
           }
@@ -55,6 +55,7 @@ export default function OfficerLayout({ children }: { children: React.ReactNode 
         }
       } catch (error) {
         console.error('Error fetching user:', error);
+        router.push('/login');
       } finally {
         setLoading(false);
       }
@@ -65,10 +66,13 @@ export default function OfficerLayout({ children }: { children: React.ReactNode 
   const navItems = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/officer/dashboard' },
     { name: 'Grievances', icon: FolderOpen, href: '/officer/grievances' },
+    { name: 'Priority Queue', icon: Zap, href: '/officer/dashboard#priority-queue' },
     { name: 'AI Copilot', icon: Brain, href: '/officer/copilot', isAI: true },
     { name: 'Assigned to Me', icon: UserCheck, href: '/officer/assigned' },
     { name: 'Escalations', icon: AlertTriangle, href: '/officer/escalations' },
-    { name: 'Recurring Issues', icon: Repeat, href: '/officer/incidents' },
+    { name: 'Recurring Issues', icon: Repeat, disabled: true },
+    { name: 'Analytics', icon: BarChart3, disabled: true },
+    { name: 'Profile', icon: UserCheck, disabled: true },
   ];
 
   if (loading) {
@@ -109,25 +113,25 @@ export default function OfficerLayout({ children }: { children: React.ReactNode 
               </Avatar>
               <div className="overflow-hidden">
                 <p className="truncate text-sm font-medium text-white">{user?.name || 'Officer'}</p>
-                <p className="truncate text-xs text-slate-400">{user?.department || 'Civic Services'}</p>
+                <p className="truncate text-xs text-slate-400">{user?.department || 'Department not assigned'}</p>
               </div>
             </div>
           </div>
 
           <nav className="space-y-1">
             {navItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`flex items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive 
-                      ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30' 
-                      : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-                  }`}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
+              const isActive = item.href
+                ? pathname === item.href.split('#')[0] || pathname.startsWith(`${item.href.split('#')[0]}/`)
+                : false;
+              const className = `flex items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30'
+                  : item.disabled
+                    ? 'cursor-not-allowed text-slate-600'
+                    : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+              }`;
+              const contents = (
+                <>
                   <item.icon className={`h-5 w-5 ${isActive ? 'text-indigo-400' : 'text-slate-500'}`} />
                   <span>{item.name}</span>
                   {item.isAI && (
@@ -135,7 +139,24 @@ export default function OfficerLayout({ children }: { children: React.ReactNode 
                       Copilot
                     </Badge>
                   )}
+                  {item.disabled && (
+                    <Badge variant="secondary" className="ml-auto text-[9px]">Coming soon</Badge>
+                  )}
+                </>
+              );
+              return item.href ? (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={className}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {contents}
                 </Link>
+              ) : (
+                <div key={item.name} className={className} aria-disabled="true">
+                  {contents}
+                </div>
               );
             })}
           </nav>

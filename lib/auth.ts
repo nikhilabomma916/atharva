@@ -1,7 +1,17 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { compareSync } from 'bcryptjs';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || 'civicresolve-dev-secret-key-change-in-production');
+const DEVELOPMENT_JWT_SECRET = 'civicresolve-local-development-secret-only';
+
+function getJwtSecret(): Uint8Array {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret && process.env.NODE_ENV === 'production') {
+    throw new Error('AUTH_SECRET must be configured in production.');
+  }
+  const value = secret || DEVELOPMENT_JWT_SECRET;
+  if (value.length < 32) throw new Error('AUTH_SECRET must contain at least 32 characters.');
+  return new TextEncoder().encode(value);
+}
 
 export interface JWTPayload {
   userId: string;
@@ -15,12 +25,12 @@ export async function createToken(payload: JWTPayload): Promise<string> {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('24h')
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 export async function verifyToken(token: string): Promise<JWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return payload as unknown as JWTPayload;
   } catch {
     return null;

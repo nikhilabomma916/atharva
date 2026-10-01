@@ -1,3 +1,14 @@
+export const DEPARTMENT_IDS = [
+  'dept-water',
+  'dept-roads',
+  'dept-sanitation',
+  'dept-electrical',
+  'dept-safety',
+  'dept-health',
+  'dept-edu',
+  'dept-transport',
+] as const;
+
 export const DEPARTMENT_NAMES: Record<string, string> = {
   'dept-water': 'Water Supply',
   'dept-roads': 'Roads & Infrastructure',

@@ -1,30 +1,29 @@
 import { NextRequest } from 'next/server';
 import { getAuthUser } from '@/lib/api-utils';
-import { findGrievanceById, updateGrievance, addAuditLog } from '@/lib/data/store';
+import { escalateGrievance, isValidGrievanceId } from '@/lib/data/grievances';
+import { isDatabaseConfigured } from '@/lib/db';
 
-export async function POST(req: NextRequest, ctx: any) {
+type RouteContext = { params: Promise<{ id: string }> };
+
+export async function POST(_req: NextRequest, ctx: RouteContext) {
   const user = await getAuthUser();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (user.role === 'citizen') return Response.json({ error: 'Unauthorized' }, { status: 403 });
+  if (!isDatabaseConfigured()) {
+    return Response.json({ error: 'The grievance database is not configured.' }, { status: 503 });
+  }
 
-  const params = await ctx.params;
-  const id = params.id;
-
-  const grievance = findGrievanceById(id);
-  if (!grievance) return Response.json({ error: 'Not found' }, { status: 404 });
-
-  const now = new Date().toISOString();
-  updateGrievance(id, { status: 'ESCALATED' });
-
-  addAuditLog({
-    id: `log-${Date.now()}`,
-    action: 'UPDATE',
-    entityType: 'GRIEVANCE',
-    entityId: id,
-    actorId: user.userId,
-    actorName: user.name,
-    actorRole: user.role as any,
-    timestamp: now
-  });
-
-  return Response.json({ success: true });
+  const { id } = await ctx.params;
+  if (!isValidGrievanceId(id)) return Response.json({ error: 'Not found' }, { status: 404 });
+  try {
+    const result = await escalateGrievance(id, user);
+    if (!result.ok) {
+      if (result.reason === 'not_found') return Response.json({ error: 'Not found' }, { status: 404 });
+      return Response.json({ error: 'Resolved or closed grievances cannot be escalated.' }, { status: 409 });
+    }
+    return Response.json({ success: true, grievance: result.grievance });
+  } catch (error) {
+    console.error('Grievance escalation failed:', error);
+    return Response.json({ error: 'The grievance could not be escalated.' }, { status: 500 });
+  }
 }

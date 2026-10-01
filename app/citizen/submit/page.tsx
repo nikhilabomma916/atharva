@@ -100,6 +100,8 @@ function SubmitGrievanceForm() {
   // Image Upload & AI Vision State
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imageFileName, setImageFileName] = useState<string>('');
+  const [imageFileType, setImageFileType] = useState<string>('image/jpeg');
+  const [imageFileSize, setImageFileSize] = useState(0);
   const [analyzingImage, setAnalyzingImage] = useState(false);
   const [visionData, setVisionData] = useState<VisionAnalysis | null>(null);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
@@ -216,6 +218,8 @@ function SubmitGrievanceForm() {
     if (!file) return;
 
     setImageFileName(file.name);
+    setImageFileType(file.type || 'application/octet-stream');
+    setImageFileSize(file.size);
     const reader = new FileReader();
     reader.onload = async (event) => {
       const dataUrl = event.target?.result as string;
@@ -291,6 +295,8 @@ function SubmitGrievanceForm() {
   // Handle One-Click Sample Defect Photo Test
   const handleSelectSample = (sample: typeof sampleDefects[0]) => {
     setImageFileName(`${sample.id}_photo.jpg`);
+    setImageFileType('image/jpeg');
+    setImageFileSize(0);
     setSelectedImage(`/samples/${sample.id}.jpg`);
     runVisionAnalysis({ sampleId: sample.id, name: `${sample.id}_photo.jpg` });
   };
@@ -329,9 +335,8 @@ function SubmitGrievanceForm() {
           attachments: selectedImage ? [{
             id: `att-${Date.now()}`,
             fileName: imageFileName || 'defect_evidence.jpg',
-            fileType: 'image/jpeg',
-            fileSize: 1024 * 250,
-            filePath: selectedImage,
+            fileType: imageFileType,
+            fileSize: imageFileSize,
             uploadedAt: new Date().toISOString()
           }] : []
         }),

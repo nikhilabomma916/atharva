@@ -1,52 +1,56 @@
 import { NextRequest } from 'next/server';
+import { z } from 'zod';
 import { getAuthUser } from '@/lib/api-utils';
-import { findGrievanceById, updateGrievance, addNotification, addAuditLog, store } from '@/lib/data/store';
+import { changeOfficerGrievanceStatus, isValidGrievanceId, updateGrievance } from '@/lib/data/grievances';
+import { isDatabaseConfigured } from '@/lib/db';
 
-export async function POST(req: NextRequest, ctx: any) {
+type RouteContext = { params: Promise<{ id: string }> };
+const resolutionSchema = z.object({ resolution: z.string().trim().min(1).max(5000) });
+
+export async function POST(req: NextRequest, ctx: RouteContext) {
   const user = await getAuthUser();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (user.role === 'citizen') return Response.json({ error: 'Unauthorized' }, { status: 403 });
+  if (!isDatabaseConfigured()) {
+    return Response.json({ error: 'The grievance database is not configured.' }, { status: 503 });
+  }
 
-  const params = await ctx.params;
-  const id = params.id;
-  const { resolution } = await req.json();
+  const { id } = await ctx.params;
+  if (!isValidGrievanceId(id)) return Response.json({ error: 'Not found' }, { status: 404 });
 
-  const grievance = findGrievanceById(id);
-  if (!grievance) return Response.json({ error: 'Not found' }, { status: 404 });
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: 'Request body must be valid JSON.' }, { status: 400 });
+  }
+  const parsed = resolutionSchema.safeParse(body);
+  if (!parsed.success) return Response.json({ error: 'A resolution summary is required.' }, { status: 400 });
 
-  const now = new Date().toISOString();
-  
-  updateGrievance(id, { status: 'RESOLVED', resolvedAt: now });
+  try {
+    if (user.role === 'officer') {
+      const result = await changeOfficerGrievanceStatus(
+        id,
+        user.userId,
+        'RESOLVED',
+        parsed.data.resolution,
+      );
+      if (!result.ok) {
+        if (result.reason === 'not_assigned') return Response.json({ error: 'Not found' }, { status: 404 });
+        return Response.json({ error: 'Only an in-progress grievance can be resolved by its assigned officer.' }, { status: 409 });
+      }
+      return Response.json({ success: true, grievance: result.grievance });
+    }
 
-  store.citizenUpdates.push({
-    id: `upd-${Date.now()}`,
-    grievanceId: id,
-    message: resolution,
-    
-    isPublic: true,
-    createdAt: now
-  });
-
-  addNotification({
-    id: `notif-${Date.now()}`,
-    userId: grievance.citizenId,
-    title: 'Grievance Resolved',
-    message: `Your grievance ${id} has been resolved.`,
-    type: 'complaint_resolved',
-    grievanceId: id,
-    read: false,
-    createdAt: now
-  });
-
-  addAuditLog({
-    id: `log-${Date.now()}`,
-    action: 'UPDATE',
-    entityType: 'GRIEVANCE',
-    entityId: id,
-    actorId: user.userId,
-    actorName: user.name,
-    actorRole: user.role as any,
-    timestamp: now
-  });
-
-  return Response.json({ success: true });
+    const grievance = await updateGrievance(id, user, {
+      status: 'RESOLVED',
+      resolvedAt: new Date().toISOString(),
+      reason: parsed.data.resolution,
+    });
+    if (!grievance) return Response.json({ error: 'Not found' }, { status: 404 });
+    return Response.json({ success: true, grievance });
+  } catch (error) {
+    console.error('Grievance resolution failed:', error);
+    return Response.json({ error: 'The grievance could not be resolved.' }, { status: 500 });
+  }
 }

@@ -11,6 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { PriorityBadge, StatusBadge, SLAIndicator, LoadingState, ErrorState } from '@/components/civic/shared';
+import { buildGrievanceAnalysisSummary } from '@/lib/ai/priority-engine';
+import type { PriorityLevel, UrgencyLevel } from '@/lib/types';
 
 interface GrievanceDetail {
   id: string;
@@ -19,7 +21,7 @@ interface GrievanceDetail {
   categoryId: string;
   status: string;
   priorityScore?: number;
-  priorityLevel?: string;
+  priorityLevel?: PriorityLevel;
   location: { address?: string; area?: string; ward?: string; city?: string };
   duration?: string;
   affectedCount?: number;
@@ -32,11 +34,13 @@ interface GrievanceDetail {
 
 interface Analysis {
   summary: string;
-  urgency: string;
-  impact: string;
+  category: string;
+  urgency: UrgencyLevel;
+  impact: 'HIGH' | 'MEDIUM' | 'LOW';
   safetyRisk: boolean;
   reasoning: string[];
-  aiProvider: string;
+  confidence?: number;
+  aiProvider?: 'ollama' | 'fallback';
 }
 
 interface StatusEntry {
@@ -162,11 +166,19 @@ export default function GrievanceDetailPage() {
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Brain className="size-4 text-primary" />
                   AI Analysis
-                  <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-normal text-primary">{data.analysis.aiProvider === 'ollama' ? 'AI' : 'Rule-based'}</span>
+                  {data.analysis.aiProvider && (
+                    <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-normal text-primary">
+                      {data.analysis.aiProvider === 'ollama' ? 'AI' : 'Rule-based'}
+                    </span>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">{data.analysis.summary}</p>
+                <p className="text-sm text-muted-foreground">
+                  {buildGrievanceAnalysisSummary(data.analysis, g.priorityLevel && g.priorityScore !== undefined
+                    ? { level: g.priorityLevel, score: g.priorityScore }
+                    : undefined)}
+                </p>
                 {data.analysis.safetyRisk && (
                   <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 px-3 py-2 text-sm text-red-700 dark:text-red-400">
                     <AlertTriangle className="size-4" />

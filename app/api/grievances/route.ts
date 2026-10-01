@@ -1,113 +1,96 @@
 import { NextRequest } from 'next/server';
-import { store, addGrievance, addAuditLog, addNotification } from '@/lib/data/store';
 import { getAuthUser } from '@/lib/api-utils';
-import { Grievance } from '@/lib/types';
+import { createGrievance, listGrievances } from '@/lib/data/grievances';
+import { isDatabaseConfigured } from '@/lib/db';
+import { grievanceCreateSchema, GRIEVANCE_STATUSES, PRIORITY_LEVELS } from '@/lib/validation/grievance';
+
+function databaseErrorResponse(error: unknown): Response {
+  console.error('Grievance database operation failed:', error);
+  const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
+  if (code === '42P01') {
+    return Response.json({ error: 'The grievance database migration has not been applied.' }, { status: 503 });
+  }
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'ECONNREFUSED' ||
+      code === 'ETIMEDOUT' || code === 'ECONNRESET') {
+    return Response.json({ error: 'The database is currently unavailable.' }, { status: 503 });
+  }
+  return Response.json({ error: 'The grievance could not be saved. Please try again.' }, { status: 500 });
+}
 
 export async function GET(req: NextRequest) {
   const user = await getAuthUser();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { searchParams } = new URL(req.url);
-  const status = searchParams.get('status');
-  const category = searchParams.get('category');
-  const priority = searchParams.get('priority');
-  const departmentId = searchParams.get('department');
-  const citizenId = searchParams.get('citizenId');
-  const officerId = searchParams.get('officerId');
-  const search = searchParams.get('search');
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '50');
-
-  let filtered = store.grievances;
-
-  if (user.role === 'citizen') {
-    filtered = filtered.filter(g => g.citizenId === user.userId);
-  } else if (user.role === 'officer') {
-    const officer = store.users.find(u => u.id === user.userId);
-    filtered = filtered.filter(g => g.assignedOfficerId === user.userId || false);
+  if (!isDatabaseConfigured()) {
+    return Response.json({ error: 'The grievance database is not configured.' }, { status: 503 });
   }
 
-  if (status) filtered = filtered.filter(g => g.status === status);
-  if (category) filtered = filtered.filter(g => g.categoryId === category);
-  if (priority) filtered = filtered.filter(g => g.priorityLevel === priority);
-  if (departmentId) filtered = filtered.filter(g => g.departmentId === departmentId);
-  if (citizenId) filtered = filtered.filter(g => g.citizenId === citizenId);
-  if (officerId) filtered = filtered.filter(g => g.assignedOfficerId === officerId);
-  if (search) {
-    const s = search.toLowerCase();
-    filtered = filtered.filter(g => g.title.toLowerCase().includes(s) || g.description.toLowerCase().includes(s));
+  const searchParams = req.nextUrl.searchParams;
+  const page = Number(searchParams.get('page') || 1);
+  const limit = Number(searchParams.get('limit') || 50);
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
+    return Response.json({ error: 'Page must be positive and limit must be between 1 and 100.' }, { status: 400 });
   }
 
-  const total = filtered.length;
-  const start = (page - 1) * limit;
-  const paginated = filtered.slice(start, start + limit);
+  const statusParam = searchParams.get('status');
+  if (statusParam && !GRIEVANCE_STATUSES.includes(statusParam as typeof GRIEVANCE_STATUSES[number])) {
+    return Response.json({ error: 'Invalid grievance status filter.' }, { status: 400 });
+  }
+  const priorityParam = searchParams.get('priority');
+  if (priorityParam && !PRIORITY_LEVELS.includes(priorityParam as typeof PRIORITY_LEVELS[number])) {
+    return Response.json({ error: 'Invalid grievance priority filter.' }, { status: 400 });
+  }
 
-  return Response.json({ data: paginated, meta: { total, page, limit } });
+  try {
+    const result = await listGrievances({
+      page,
+      limit,
+      role: user.role,
+      userId: user.userId,
+      ...(statusParam ? { status: statusParam as typeof GRIEVANCE_STATUSES[number] } : {}),
+      ...(searchParams.get('category') ? { categoryId: searchParams.get('category')! } : {}),
+      ...(priorityParam ? { priorityLevel: priorityParam as typeof PRIORITY_LEVELS[number] } : {}),
+      ...(searchParams.get('department') ? { departmentId: searchParams.get('department')! } : {}),
+      ...(user.role === 'admin' && searchParams.get('citizenId')
+        ? { citizenId: searchParams.get('citizenId')! }
+        : {}),
+      ...(user.role === 'admin' && searchParams.get('officerId')
+        ? { officerId: searchParams.get('officerId')! }
+        : {}),
+      ...(searchParams.get('search') ? { search: searchParams.get('search')!.slice(0, 200) } : {}),
+    });
+    return Response.json({ data: result.data, meta: { total: result.total, page, limit } });
+  } catch (error) {
+    return databaseErrorResponse(error);
+  }
 }
 
 export async function POST(req: NextRequest) {
   const user = await getAuthUser();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (user.role !== 'citizen') return Response.json({ error: 'Only citizens can submit grievances.' }, { status: 403 });
+  if (!isDatabaseConfigured()) {
+    return Response.json({ error: 'The grievance database is not configured.' }, { status: 503 });
+  }
 
-  const body = await req.json();
-  const {
-    title,
-    description,
-    categoryId,
-    location,
-    duration,
-    affectedCount,
-    previousComplaintId,
-    attachments = []
-  } = body;
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: 'Request body must be valid JSON.' }, { status: 400 });
+  }
 
-  const id = `GRV-${Date.now().toString().slice(-4)}`;
-  const now = new Date().toISOString();
+  const parsed = grievanceCreateSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json({
+      error: 'Please correct the grievance details.',
+      fields: parsed.error.issues.map(({ path, message }) => ({ field: path.join('.'), message })),
+    }, { status: 400 });
+  }
 
-  const category = store.categories.find((c) => c.id === categoryId);
-  const departmentId = category?.departmentId || '';
-  const safeLocation = {
-    address: location?.address || '',
-    area: location?.area || '',
-    ward: location?.ward || '',
-    city: location?.city || 'Bangalore'
-  };
-  const departmentName = store.departments.find((d) => d.id === departmentId)?.name || 'Municipal Department';
-
-  const complaintLetter = `To the ${departmentName},\n\nSubject: Citizen Grievance / Student Issue Complaint\n\nDear Sir/Madam,\n\nI, ${user.name}, am filing this complaint regarding the issue titled "${title || 'Civic Issue'}".\n\nIssue Details:\n- Category: ${category?.name || categoryId || 'General Civic Issue'}\n- Location: ${safeLocation.address || safeLocation.area || safeLocation.ward || 'Not specified'}, ${safeLocation.city}\n- Description: ${description || 'No additional details were provided.'}\n- Duration: ${duration || 'Not specified'}\n- Affected count: ${affectedCount ?? 'Not specified'}\n\nThis issue affects public safety and welfare and requires prompt review and resolution. Kindly treat this as an urgent matter and provide an update on the action taken.\n\nSincerely,\n${user.name}\nCitizen / Complainant`;
-
-  const grievance: Grievance = {
-    id,
-    title,
-    description,
-    categoryId,
-    departmentId,
-    location: safeLocation,
-    citizenId: user.userId,
-    status: 'SUBMITTED',
-    priorityScore: 0,
-    priorityLevel: 'MEDIUM',
-    createdAt: now,
-    updatedAt: now,
-    attachments: Array.isArray(attachments) ? attachments : [],
-    complaintLetter,
-    ...(duration ? { duration } : {}),
-    ...(affectedCount !== undefined ? { affectedCount: Number(affectedCount) } : {}),
-    ...(previousComplaintId ? { previousComplaintId } : {})
-  };
-
-  addGrievance(grievance);
-
-  addAuditLog({
-    id: `log-${Date.now()}`,
-    action: 'CREATE',
-    timestamp: now,
-    entityType: 'GRIEVANCE',
-    entityId: id,
-    actorId: user.userId,
-    actorName: user.name,
-    actorRole: user.role as any,
-  });
-
-  return Response.json({ grievance }, { status: 201 });
+  try {
+    const grievance = await createGrievance(user.userId, user.name, parsed.data);
+    return Response.json({ grievance }, { status: 201 });
+  } catch (error) {
+    return databaseErrorResponse(error);
+  }
 }

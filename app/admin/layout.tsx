@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, FolderOpen, Building2, Users, Repeat, BarChart3, Clock, BookOpen, FileText, Menu, Settings, Bell, Search, Brain, Activity, LogOut } from 'lucide-react';
@@ -27,11 +27,38 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    async function verifyAdmin() {
+      try {
+        const response = await fetch('/api/auth/me');
+        const result = await response.json();
+        if (!response.ok || result.user?.role !== 'admin') {
+          router.replace(result.user?.role === 'officer' ? '/officer/dashboard' : '/login');
+          return;
+        }
+        setIsAdmin(true);
+      } catch (error) {
+        console.error('Admin authorization check failed:', error);
+        router.replace('/login');
+      } finally {
+        setAuthLoading(false);
+      }
+    }
+    void verifyAdmin();
+  }, [router]);
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
   };
+
+  if (authLoading) {
+    return <div className="flex h-screen items-center justify-center">Loading admin portal...</div>;
+  }
+  if (!isAdmin) return null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

@@ -1,44 +1,61 @@
 import { NextRequest } from 'next/server';
+import { z } from 'zod';
 import { getAuthUser } from '@/lib/api-utils';
-import { getInternalNotes, store, addAuditLog } from '@/lib/data/store';
+import {
+  createGrievanceInternalNote,
+  getGrievanceForUser,
+  getGrievanceInternalNotes,
+  isValidGrievanceId,
+} from '@/lib/data/grievances';
+import { isDatabaseConfigured } from '@/lib/db';
 
-export async function GET(req: NextRequest, ctx: any) {
+type RouteContext = { params: Promise<{ id: string }> };
+const noteSchema = z.object({ content: z.string().trim().min(1).max(5000) });
+
+export async function GET(_req: NextRequest, ctx: RouteContext) {
   const user = await getAuthUser();
-  if (!user || user.role === 'citizen') return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (user.role === 'citizen') return Response.json({ error: 'Only officers and administrators can access internal notes.' }, { status: 403 });
+  if (!isDatabaseConfigured()) {
+    return Response.json({ error: 'The grievance database is not configured.' }, { status: 503 });
+  }
 
-  const params = await ctx.params;
-  return Response.json(getInternalNotes(params.id));
+  const { id } = await ctx.params;
+  if (!isValidGrievanceId(id)) return Response.json({ error: 'Not found' }, { status: 404 });
+  try {
+    if (!(await getGrievanceForUser(id, user))) return Response.json({ error: 'Not found' }, { status: 404 });
+    return Response.json(await getGrievanceInternalNotes(id));
+  } catch (error) {
+    console.error('Grievance notes lookup failed:', error);
+    return Response.json({ error: 'Grievance notes could not be loaded.' }, { status: 500 });
+  }
 }
 
-export async function POST(req: NextRequest, ctx: any) {
+export async function POST(req: NextRequest, ctx: RouteContext) {
   const user = await getAuthUser();
-  if (!user || user.role === 'citizen') return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (user.role === 'citizen') return Response.json({ error: 'Only officers and administrators can add internal notes.' }, { status: 403 });
+  if (!isDatabaseConfigured()) {
+    return Response.json({ error: 'The grievance database is not configured.' }, { status: 503 });
+  }
 
-  const params = await ctx.params;
-  const { content } = await req.json();
-  const now = new Date().toISOString();
+  const { id } = await ctx.params;
+  if (!isValidGrievanceId(id)) return Response.json({ error: 'Not found' }, { status: 404 });
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: 'Request body must be valid JSON.' }, { status: 400 });
+  }
+  const parsed = noteSchema.safeParse(body);
+  if (!parsed.success) return Response.json({ error: 'A note between 1 and 5000 characters is required.' }, { status: 400 });
 
-  const note = {
-    id: `note-${Date.now()}`,
-    grievanceId: params.id,
-    authorId: user.userId,
-    authorName: user.name,
-    authorRole: user.role as any,
-    content,
-    createdAt: now
-  };
-  store.internalNotes.push(note);
-
-  addAuditLog({
-    id: `log-${Date.now()}`,
-    action: 'CREATE',
-    entityType: 'INTERNAL_NOTE',
-    entityId: note.id,
-    actorId: user.userId,
-    actorName: user.name,
-    actorRole: user.role as any,
-    timestamp: now
-  });
-
-  return Response.json(note, { status: 201 });
+  try {
+    const note = await createGrievanceInternalNote(id, user, parsed.data.content);
+    if (!note) return Response.json({ error: 'Not found' }, { status: 404 });
+    return Response.json(note, { status: 201 });
+  } catch (error) {
+    console.error('Grievance note creation failed:', error);
+    return Response.json({ error: 'The grievance note could not be saved.' }, { status: 500 });
+  }
 }

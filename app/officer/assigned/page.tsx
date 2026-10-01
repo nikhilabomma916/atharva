@@ -18,20 +18,20 @@ export default function AssignedPage() {
   const router = useRouter();
   const [grievances, setGrievances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     async function fetchData() {
       try {
         // In a real app we'd pass ?assigned=true and it would use the logged in officer's ID
         const res = await fetch('/api/grievances');
-        if (res.ok) {
-          const data = await res.json();
-          const items = Array.isArray(data) ? data : (data.grievances || []);
-          // For now, simulate assigned filter by picking random ones or all
-          setGrievances(items.slice(0, 5));
-        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Your assignments could not be loaded.');
+        setGrievances(data.data ?? []);
+        setError('');
       } catch (error) {
         console.error('Error fetching assigned grievances:', error);
+        setError(error instanceof Error ? error.message : 'Your assignments could not be loaded.');
       } finally {
         setLoading(false);
       }
@@ -43,6 +43,7 @@ export default function AssignedPage() {
 
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">

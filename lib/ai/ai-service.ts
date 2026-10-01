@@ -1,5 +1,6 @@
 import { CATEGORY_NAMES, DEPARTMENT_NAMES } from '@/lib/constants';
 import { store } from '@/lib/data/store';
+import type { GrievanceAIRecommendationContent } from '@/lib/types';
 
 export interface AIAnalysisResult {
   summary: string;
@@ -15,17 +16,7 @@ export interface AIAnalysisResult {
   reasoning: string[];
 }
 
-export interface AIResolutionResult {
-  summary: string;
-  keyFindings: string[];
-  recommendedActions: Array<{ action: string; department: string } | string>;
-  suggestedResponse?: string;
-  suggestedCitizenResponse?: string;
-  escalationRecommendation?: string;
-  escalationRecommended?: boolean;
-  escalationReason?: string;
-  confidence: number;
-}
+export type AIResolutionResult = GrievanceAIRecommendationContent;
 
 export interface RecommendedIssueOption {
   id: string;
@@ -341,7 +332,7 @@ export class SmartHybridAIService implements AIService {
     ];
 
     return {
-      summary: `Automated triage as ${CATEGORY_NAMES[resolvedCategory] || resolvedCategory} with ${urgency} priority.`,
+      summary: `Category: ${CATEGORY_NAMES[resolvedCategory] || resolvedCategory}. ${urgency} urgency. ${impact} impact. ${safetyRisk ? 'Safety risk identified' : 'No safety risk identified'}.`,
       category: resolvedCategory,
       subcategory: 'Public Municipal Infrastructure',
       issueType: title,
@@ -356,26 +347,42 @@ export class SmartHybridAIService implements AIService {
   }
 
   async generateResolution(grievance: any, analysis: any, knowledgeContext?: string[]): Promise<AIResolutionResult> {
-    const isCritical = grievance?.priority === 'CRITICAL' || analysis?.urgency === 'CRITICAL';
+    const urgency = analysis?.urgency;
+    const impact = analysis?.impact;
+    const safetyRisk = analysis?.safetyRisk === true;
+    const priorityLevel = grievance?.priorityLevel || grievance?.priority;
+    const priorityText = priorityLevel
+      ? `Overall priority: ${priorityLevel}${Number.isInteger(grievance?.priorityScore) ? ` (${grievance.priorityScore})` : ''}.`
+      : 'Overall priority is unavailable.';
     const catName = CATEGORY_NAMES[grievance?.categoryId] || grievance?.category || 'Civic Services';
+    const departmentId = grievance?.departmentId;
+    const departmentName = DEPARTMENT_NAMES[departmentId] || 'assigned department';
+    const findings = [
+      `Category: ${catName}.`,
+      urgency ? `${urgency} urgency.` : 'Urgency is unavailable.',
+      impact ? `${impact} impact.` : 'Impact is unavailable.',
+      `Safety risk: ${safetyRisk ? 'identified' : 'not identified'}.`,
+      priorityText,
+    ];
+    const recommendedActions = safetyRisk
+      ? [
+          { action: 'Verify the reported hazard and secure the immediate area if the risk is confirmed.', department: departmentName },
+          { action: 'Record inspection findings and the corrective action taken in the grievance.', department: departmentName },
+        ]
+      : [
+          { action: 'Inspect the reported issue at the submitted location and confirm the cause.', department: departmentName },
+          { action: 'Record inspection findings and the corrective action taken in the grievance.', department: departmentName },
+        ];
 
     return {
-      summary: `Automated Action Plan generated for ${catName} grievance (${grievance?.id || 'GRV'}).`,
-      keyFindings: [
-        `Grievance categorized under ${catName} with ${isCritical ? 'CRITICAL urgency' : 'standard priority'}.`,
-        'Geospatial verification matches municipal zone coverage.',
-        'Historical precedent documents matched in Civic Knowledge Base.'
-      ],
-      recommendedActions: [
-        { action: 'Dispatch specialized municipal inspection crew within 2 hours', department: grievance?.departmentId || 'dept-water' },
-        { action: 'Issue SMS / Push notification alert to affected ward residents', department: 'dept-safety' },
-        { action: 'Schedule post-repair validation and photographic evidence upload', department: grievance?.departmentId || 'dept-water' }
-      ],
-      suggestedCitizenResponse: `Dear Citizen, your complaint regarding "${grievance?.title || 'reported civic issue'}" (Ticket #${grievance?.id || 'GRV'}) has been assigned to our rapid response team. Target resolution SLA is within ${isCritical ? '4 hours' : '24 hours'}.`,
-      suggestedResponse: `Action initiated. Inspection team notified for ticket #${grievance?.id}.`,
-      escalationRecommended: isCritical,
-      escalationReason: isCritical ? 'Critical safety risk or SLA breach threshold imminent.' : undefined,
-      confidence: 0.94
+      summary: `Suggested officer actions for the ${catName} grievance. Verify the facts on site and use professional judgment before acting.`,
+      keyFindings: findings,
+      recommendedActions,
+      suggestedCitizenResponse: `Your grievance regarding "${grievance?.title || 'the reported civic issue'}" has been assigned for officer review. We will update you after the reported issue has been assessed.`,
+      ...(safetyRisk || urgency === 'CRITICAL' || priorityLevel === 'CRITICAL'
+        ? { escalationRecommendation: 'Consider escalation for accelerated human review based on the recorded safety risk, urgency, or overall priority.' }
+        : {}),
+      ...(knowledgeContext?.length ? { relevantKnowledge: knowledgeContext.slice(0, 10) } : {}),
     };
   }
 

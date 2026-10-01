@@ -1,73 +1,85 @@
 import { NextRequest } from 'next/server';
 import { getAuthUser } from '@/lib/api-utils';
-import { findGrievanceById, updateGrievance, addAnalysis, store } from '@/lib/data/store';
+import {
+  getAllGrievancesForAnalysis,
+  getDepartmentForCategory,
+  getGrievanceForUser,
+  isValidGrievanceId,
+  persistGrievanceAnalysis,
+} from '@/lib/data/grievances';
+import { isDatabaseConfigured } from '@/lib/db';
 import { createAIService } from '@/lib/ai/ai-service';
-import { calculatePriority } from '@/lib/ai/priority-engine';
+import { buildGrievanceAnalysisSummary, calculateGrievancePriority } from '@/lib/ai/priority-engine';
 import { findSimilarGrievances } from '@/lib/ai/duplicate-detection';
 import { detectIncidents } from '@/lib/ai/incident-detection';
+import { aiAnalysisResultSchema } from '@/lib/validation/grievance';
 
-export async function POST(req: NextRequest, ctx: any) {
+type RouteContext = { params: Promise<{ id: string }> };
+
+function databaseErrorResponse(error: unknown): Response {
+  console.error('Grievance analysis database operation failed:', error);
+  const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
+  if (code === '42P01') {
+    return Response.json({ error: 'The grievance database migration has not been applied.' }, { status: 503 });
+  }
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'ECONNREFUSED' ||
+      code === 'ETIMEDOUT' || code === 'ECONNRESET') {
+    return Response.json({ error: 'The database is currently unavailable.' }, { status: 503 });
+  }
+  return Response.json({ error: 'The grievance analysis could not be saved.' }, { status: 500 });
+}
+
+export async function POST(_req: NextRequest, ctx: RouteContext) {
   const user = await getAuthUser();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!isDatabaseConfigured()) {
+    return Response.json({ error: 'The grievance database is not configured.' }, { status: 503 });
+  }
 
-  const params = await ctx.params;
-  const id = params.id;
+  const { id } = await ctx.params;
+  if (!isValidGrievanceId(id)) return Response.json({ error: 'Not found' }, { status: 404 });
 
-  const grievance = findGrievanceById(id);
-  if (!grievance) return Response.json({ error: 'Not found' }, { status: 404 });
+  try {
+    const grievance = await getGrievanceForUser(id, user);
+    if (!grievance) return Response.json({ error: 'Not found' }, { status: 404 });
 
-  const aiService = await createAIService();
-  const analysisResult = await aiService.analyzeGrievance(grievance.title, grievance.description, grievance.categoryId);
-  
-  const duplicates = findSimilarGrievances(grievance, store.grievances);
+    const allGrievances = await getAllGrievancesForAnalysis();
+    const aiService = await createAIService();
+    const rawAnalysisResult = await aiService.analyzeGrievance(
+      grievance.title,
+      grievance.description,
+      grievance.categoryId,
+      grievance.location.address || grievance.location.area,
+      grievance.duration,
+      grievance.affectedCount,
+    );
+    const analysisResult = aiAnalysisResultSchema.parse(rawAnalysisResult);
+    const duplicates = findSimilarGrievances(grievance, allGrievances);
 
-  const severityScore = analysisResult.impact === 'HIGH' ? 80 : analysisResult.impact === 'MEDIUM' ? 50 : 20;
-  const publicImpactScore = analysisResult.impact === 'HIGH' ? 80 : analysisResult.impact === 'MEDIUM' ? 50 : 20;
-  const urgencyScore = analysisResult.urgency === 'CRITICAL' ? 100 : analysisResult.urgency === 'HIGH' ? 75 : analysisResult.urgency === 'MEDIUM' ? 50 : 25;
-  const durationScore = grievance.duration ? 50 : 10;
-  const recurrenceScore = duplicates.length > 0 ? Math.min(duplicates.length * 20, 100) : 0;
+    const priority = calculateGrievancePriority(analysisResult, grievance, duplicates.length);
+    const analysisToPersist = {
+      ...analysisResult,
+      summary: buildGrievanceAnalysisSummary(analysisResult, priority),
+    };
+    const departmentId = getDepartmentForCategory(analysisResult.category) ?? grievance.departmentId;
 
-  const priorityBreakdown = calculatePriority(
-    severityScore,
-    publicImpactScore,
-    urgencyScore,
-    durationScore,
-    analysisResult.safetyRisk,
-    recurrenceScore
-  );
+    const analysis = await persistGrievanceAnalysis(id, user, analysisToPersist, priority, departmentId);
+    if (!analysis) return Response.json({ error: 'Not found' }, { status: 404 });
 
-  const category = store.categories.find(c => c.id === grievance.categoryId);
-  const departmentId = category?.departmentId || grievance.departmentId;
-
-  const analysis: any = {
-    id: `ana-${Date.now()}`,
-    grievanceId: id,
-    urgency: analysisResult.urgency,
-    impact: analysisResult.impact,
-    safetyRisk: analysisResult.safetyRisk,
-    summary: analysisResult.summary,
-    category: analysisResult.category,
-    reasoning: analysisResult.reasoning,
-    confidence: 0.8,
-    aiProvider: 'fallback',
-    createdAt: new Date().toISOString()
-  };
-  addAnalysis(analysis);
-
-  updateGrievance(id, {
-    status: 'AI_ANALYZED',
-    priorityScore: priorityBreakdown.score,
-    priorityLevel: priorityBreakdown.level,
-    departmentId
-  });
-
-  const incidents = detectIncidents(store.grievances);
-
-  return Response.json({
-    analysis,
-    priority: priorityBreakdown,
-    duplicates,
-    incidents,
-    department: departmentId
-  });
+    return Response.json({
+      analysis,
+      priority,
+      duplicates,
+      incidents: detectIncidents(allGrievances),
+      department: departmentId,
+    });
+  } catch (error) {
+    const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
+    if (code === '42P01' || code === 'ENOTFOUND' || code === 'EAI_AGAIN' ||
+        code === 'ECONNREFUSED' || code === 'ETIMEDOUT' || code === 'ECONNRESET') {
+      return databaseErrorResponse(error);
+    }
+    console.error('Grievance analysis failed:', error);
+    return Response.json({ error: 'The grievance could not be analyzed.' }, { status: 500 });
+  }
 }

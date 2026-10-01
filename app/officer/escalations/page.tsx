@@ -17,19 +17,19 @@ export default function EscalationsPage() {
   const router = useRouter();
   const [grievances, setGrievances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     async function fetchData() {
       try {
         const res = await fetch('/api/grievances');
-        if (res.ok) {
-          const data = await res.json();
-          const items: any[] = Array.isArray(data) ? data : (data.grievances || []);
-          const escalated = items.filter((g: any) => g.status === 'ESCALATED' || g.status === 'SLA_AT_RISK');
-          setGrievances(escalated);
-        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Escalations could not be loaded.');
+        const escalated = (data.data ?? []).filter((g: any) => g.status === 'ESCALATED' || g.status === 'SLA_AT_RISK');
+        setGrievances(escalated);
       } catch (error) {
         console.error('Error fetching escalations:', error);
+        setError(error instanceof Error ? error.message : 'Escalations could not be loaded.');
       } finally {
         setLoading(false);
       }
@@ -41,6 +41,7 @@ export default function EscalationsPage() {
 
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">

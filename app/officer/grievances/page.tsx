@@ -24,17 +24,19 @@ export default function GrievancesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch('/api/grievances');
-        if (res.ok) {
-          const data = await res.json();
-          setGrievances(Array.isArray(data) ? data : (data.grievances || []));
-        }
+        const res = await fetch('/api/grievances?limit=100');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Assigned grievances could not be loaded.');
+        setGrievances(data.data ?? []);
+        setError('');
       } catch (error) {
         console.error('Error fetching grievances:', error);
+        setError(error instanceof Error ? error.message : 'Assigned grievances could not be loaded.');
       } finally {
         setLoading(false);
       }
@@ -58,6 +60,7 @@ export default function GrievancesPage() {
 
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">All Grievances</h1>

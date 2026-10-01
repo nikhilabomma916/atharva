@@ -90,7 +90,8 @@ export interface Attachment {
   fileName: string;
   fileType: string;
   fileSize: number;
-  filePath: string;
+  filePath?: string;
+  storageRef?: string | null;
   uploadedAt: string;
 }
 
@@ -109,22 +110,24 @@ export interface GrievanceAnalysis {
   impact: 'HIGH' | 'MEDIUM' | 'LOW';
   safetyRisk: boolean;
   reasoning: string[];
-  confidence: number;
-  aiProvider: 'ollama' | 'fallback';
+  confidence?: number;
+  aiProvider?: 'ollama' | 'fallback';
   createdAt: string;
 }
 
 // Priority Breakdown
 export interface PriorityBreakdown {
-  severity: number;       // max 30
-  publicImpact: number;   // max 25
-  urgency: number;        // max 20
-  duration: number;       // max 10
-  safetyRisk: number;     // max 10
-  recurrence: number;     // max 5
-  total: number;          // 0-100
+  score: number;
   level: PriorityLevel;
   reasons: string[];
+  factors: {
+    severity: number;
+    affectedPopulation: number;
+    urgency: number;
+    duration: number;
+    safetyRisk: number;
+    recurrence: number;
+  };
 }
 
 // Duplicate Link
@@ -247,6 +250,29 @@ export interface AIDecision {
   timestamp: string;
 }
 
+export type GrievanceAIDecisionValue = 'ACCEPTED' | 'MODIFIED' | 'REJECTED';
+
+export interface GrievanceAIRecommendationContent {
+  summary: string;
+  keyFindings: string[];
+  recommendedActions: Array<{ action: string; department: string } | string>;
+  suggestedCitizenResponse?: string;
+  escalationRecommendation?: string;
+  relevantKnowledge?: string[];
+}
+
+export interface GrievanceAIDecisionRecord {
+  id: string;
+  grievanceId: string;
+  recommendationId: string;
+  officerId: string;
+  decision: GrievanceAIDecisionValue;
+  originalRecommendation: GrievanceAIRecommendationContent;
+  finalRecommendation: GrievanceAIRecommendationContent | null;
+  officerNote?: string;
+  createdAt: string;
+}
+
 // Knowledge Document
 export interface KnowledgeDocument {
   id: string;
@@ -301,4 +327,3 @@ export interface TrendData {
   count: number;
   category?: string;
 }
-
